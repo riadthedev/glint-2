@@ -1,103 +1,191 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
+import type React from "react"
+
+import { useState } from "react"
+import Image from "next/image"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { ChevronDown, Upload, Sparkles } from "lucide-react"
+
+export default function LandingPage() {
+  const [dragActive, setDragActive] = useState(false)
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true)
+    } else if (e.type === "dragleave") {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      // Handle file upload logic here
+      console.log("File dropped:", e.dataTransfer.files[0])
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      // Handle file upload logic here
+      console.log("File selected:", e.target.files[0])
+    }
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo */}
+            <div className="flex items-center">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-xl font-bold text-gray-900">glint</span>
+              </div>
+            </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            {/* Navigation */}
+            <nav className="hidden md:flex items-center space-x-8">
+              <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
+                Gallery
+              </Link>
+              <div className="flex items-center space-x-1 text-gray-700 hover:text-gray-900 font-medium cursor-pointer">
+                <span>Features</span>
+                <ChevronDown className="w-4 h-4" />
+              </div>
+              <div className="flex items-center space-x-1 text-gray-700 hover:text-gray-900 font-medium cursor-pointer">
+                <span>For Business</span>
+                <ChevronDown className="w-4 h-4" />
+              </div>
+              <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
+                API
+              </Link>
+              <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
+                Pricing
+              </Link>
+            </nav>
+
+            {/* Auth Buttons */}
+            <div className="flex items-center space-x-4">
+              <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
+                Log in
+              </Link>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">
+                Sign up
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          {/* Left Side - Hero Image */}
+          <div className="relative">
+            <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 aspect-[4/3]">
+              <Image
+                src="/placeholder.svg?height=400&width=500"
+                alt="3D Logo Example"
+                width={500}
+                height={400}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </div>
+
+          {/* Right Side - Content and Upload */}
+          <div className="space-y-8">
+            {/* Hero Text */}
+            <div className="space-y-4">
+              <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
+                Transform Your Logo to{" "}
+                <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">3D</span>
+              </h1>
+              <div className="flex items-center space-x-2">
+                <span className="text-xl text-gray-600">100% Automatically and</span>
+                <span className="bg-yellow-400 text-gray-900 px-3 py-1 rounded-full text-xl font-semibold">Free</span>
+              </div>
+            </div>
+
+            {/* Upload Area */}
+            <div className="relative">
+            <div
+                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${
+                  dragActive ? "border-blue-400 bg-blue-50" : "border-gray-300 bg-white"
+                }`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <div className="space-y-4">
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-900 text-white px-8 py-3 rounded-xl text-lg font-semibold"
+                    onClick={() => document.getElementById("file-upload")?.click()}
+                  >
+                    <Upload className="w-5 h-5 mr-2" />
+                    Upload SVG
+                  </Button>
+                  <input id="file-upload" type="file" accept=".svg" onChange={handleFileSelect} className="hidden" />
+                  <p className="text-gray-500">
+                    or drop an SVG file, <br />
+                    <span className="text-blue-600 cursor-pointer hover:underline">paste SVG code or URL</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sample Logos */}
+            <div className="space-y-4">
+              <div className="text-center">
+                <p className="text-gray-500 mb-2">No SVG?</p>
+                <p className="text-gray-600 font-medium">Try one of these:</p>
+              </div>
+              <div className="flex justify-center space-x-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <button
+                    key={i}
+                    className="w-16 h-16 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center border-2 border-transparent hover:border-blue-300"
+                  >
+                    <Image
+                      src={`/placeholder.svg?height=40&width=40&text=Logo${i}`}
+                      alt={`Sample logo ${i}`}
+                      width={40}
+                      height={40}
+                      className="w-8 h-8"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Terms */}
+            <p className="text-xs text-gray-500 text-center">
+              By uploading an SVG or URL you agree to our{" "}
+              <Link href="#" className="text-blue-600 hover:underline">
+                Terms of Service
+              </Link>
+              . To learn more about how Glint handles your data, check our{" "}
+              <Link href="#" className="text-blue-600 hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          </div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
-  );
+  )
 }
