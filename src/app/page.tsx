@@ -6,10 +6,13 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, Upload, Sparkles } from "lucide-react"
+import { Alert,AlertTitle } from "@/components/ui/alert"
+import { ChevronDown, Upload, Sparkles, AlertCircleIcon} from "lucide-react"
 
 export default function LandingPage() {
   const [dragActive, setDragActive] = useState(false)
+  const [svg, setSvg] = useState< string | null>(null)
+  const [errorAlert, setErrorAlert] = useState<string | null>(null)
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -27,25 +30,50 @@ export default function LandingPage() {
     setDragActive(false)
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      // Handle file upload logic here
-      console.log("File dropped:", e.dataTransfer.files[0])
+      if (e.dataTransfer.files[0].type !== "image/svg+xml") {
+        setErrorAlert("Please upload a valid SVG file")
+        return
+      }
+      const file = e.dataTransfer.files[0]
+      const reader = new FileReader()
+      reader.onload = (fileReadEvent) =>{
+       const svgContent = fileReadEvent.target?.result as string
+       setSvg(svgContent)
+       setErrorAlert(null)
+       console.log("success fully uploaded svg")
+
+      }
+      reader.onerror = () => {
+        setErrorAlert("Error reading SVG file please try again")
+      }
+      setErrorAlert(null)
+      reader.readAsText(file)
+    }
+  }
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      if (e.target.files[0].type !== "image/svg+xml") {
+        setErrorAlert("Please upload a valid SVG file")
+        return
+      }
+      const file = e.target.files[0]
+      const reader = new FileReader()
+      reader.onload = (fileReadEvent) =>{
+       const svgContent = fileReadEvent.target?.result as string
+       setSvg(svgContent)
+       setErrorAlert(null)
+       console.log("success fully uploaded svg")
+      }
+      reader.readAsText(file)
     }
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      // Handle file upload logic here
-      console.log("File selected:", e.target.files[0])
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Logo */}
             <div className="flex items-center">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
@@ -55,7 +83,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Navigation */}
             <nav className="hidden md:flex items-center space-x-8">
               <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
                 Gallery
@@ -76,7 +103,6 @@ export default function LandingPage() {
               </Link>
             </nav>
 
-            {/* Auth Buttons */}
             <div className="flex items-center space-x-4">
               <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
                 Log in
@@ -89,10 +115,8 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Side - Hero Image */}
           <div className="relative">
             <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 aspect-[4/3]">
               <Image
@@ -121,6 +145,11 @@ export default function LandingPage() {
 
             {/* Upload Area */}
             <div className="relative">
+              {errorAlert && (
+            <Alert variant="destructive">
+        <AlertCircleIcon />
+        <AlertTitle>{errorAlert}</AlertTitle>
+      </Alert>)}
             <div
                 className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${
                   dragActive ? "border-blue-400 bg-blue-50" : "border-gray-300 bg-white"
@@ -134,11 +163,12 @@ export default function LandingPage() {
                   <Button
                     className="bg-blue-600 hover:bg-blue-900 text-white px-8 py-3 rounded-xl text-lg font-semibold"
                     onClick={() => document.getElementById("file-upload")?.click()}
+                    type="button"
                   >
                     <Upload className="w-5 h-5 mr-2" />
                     Upload SVG
                   </Button>
-                  <input id="file-upload" type="file" accept=".svg" onChange={handleFileSelect} className="hidden" />
+                  <input type="file" id="file-upload" accept=".svg" onChange={handleFileUpload} className="hidden" />
                   <p className="text-gray-500">
                     or drop an SVG file, <br />
                     <span className="text-blue-600 cursor-pointer hover:underline">paste SVG code or URL</span>
