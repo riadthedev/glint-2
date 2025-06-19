@@ -42,6 +42,7 @@ export default function LandingPage() {
       const reader = new FileReader()
       reader.onload = (fileReadEvent) =>{
        const svgContent = fileReadEvent.target?.result as string
+       localStorage.setItem("uploadedSvg", svgContent)
        setSvg(svgContent)
        router.push("/editor")
        setErrorAlert(null)
@@ -65,6 +66,7 @@ export default function LandingPage() {
       const reader = new FileReader()
       reader.onload = (fileReadEvent) =>{
        const svgContent = fileReadEvent.target?.result as string
+       localStorage.setItem("uploadedSvg", svgContent)
        setSvg(svgContent)
        router.push("/editor")
        setErrorAlert(null)
