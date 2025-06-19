@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SvgProvider } from "./context/svgcontext";
+import { SVGProvider } from "./context/svgcontext";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -28,9 +28,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SvgProvider>
+        <SVGProvider>
           {children}
-        </SvgProvider>
+        </SVGProvider>
       </body>
     </html>
   );
