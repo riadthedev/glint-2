@@ -1,17 +1,17 @@
 "use client"
 import { createContext, useState, useContext } from "react"
 
-const SvgContext = createContext<{
+const SVGContext = createContext<{
     svg: string | null
     setSvg: (svg: string) => void
 }>({
     svg: null,
     setSvg: () => {}
 })
-export const useSvgContext = () => useContext(SvgContext)
+export const useSVGContext = () => useContext(SVGContext)
 
-export const SvgProvider = ({children}: {children: React.ReactNode}) => {
+export const SVGProvider = ({children}: {children: React.ReactNode}) => {
     const [svg, setSvg] = useState<string | null>(null)
 
-    return <SvgContext.Provider value={{svg, setSvg}}>{children}</SvgContext.Provider>
+    return <SVGContext.Provider value={{svg, setSvg}}>{children}</SVGContext.Provider>
 }

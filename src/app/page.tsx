@@ -8,11 +8,14 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Alert,AlertTitle } from "@/components/ui/alert"
 import { ChevronDown, Upload, Sparkles, AlertCircleIcon} from "lucide-react"
+import { useSVGContext } from "@/app/context/svgcontext"
+import { useRouter } from "next/navigation"
 
 export default function LandingPage() {
   const [dragActive, setDragActive] = useState(false)
-  const [svg, setSvg] = useState< string | null>(null)
+  const router = useRouter()
   const [errorAlert, setErrorAlert] = useState<string | null>(null)
+  const {setSvg} = useSVGContext()
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -23,6 +26,7 @@ export default function LandingPage() {
       setDragActive(false)
     }
   }
+
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -39,6 +43,7 @@ export default function LandingPage() {
       reader.onload = (fileReadEvent) =>{
        const svgContent = fileReadEvent.target?.result as string
        setSvg(svgContent)
+       router.push("/editor")
        setErrorAlert(null)
        console.log("success fully uploaded svg")
 
@@ -61,9 +66,14 @@ export default function LandingPage() {
       reader.onload = (fileReadEvent) =>{
        const svgContent = fileReadEvent.target?.result as string
        setSvg(svgContent)
+       router.push("/editor")
        setErrorAlert(null)
        console.log("success fully uploaded svg")
       }
+      reader.onerror = () => {
+        setErrorAlert("Error reading SVG file please try again")
+      }
+      setErrorAlert(null)
       reader.readAsText(file)
     }
   }
