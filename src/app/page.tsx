@@ -211,7 +211,7 @@ export default function LandingPage() {
             {/* Terms */}
             <p className="text-xs text-gray-500 text-center">
              To learn more about how Glint handles your data, check our{" "}
-              <Link href="#" className="text-blue-600 hover:underline">
+              <Link href="/privacy-policy" className="text-blue-600 hover:underline">
                 Privacy Policy
               </Link>
               .
