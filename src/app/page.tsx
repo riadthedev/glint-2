@@ -138,8 +138,8 @@ export default function LandingPage() {
             <div className="space-y-4">
               <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
                 Transform Your Logo to{" "}
-                <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">3D</span>
-                Videos
+                <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">3D Videos</span>
+
               </h1>
               <div className="flex items-center space-x-2">
                 <span className="text-xl text-gray-600">100% Automatically and</span>
