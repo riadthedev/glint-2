@@ -202,7 +202,7 @@ export default function EditorPage() {
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left column – Canvas or empty state */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative flex items-center justify-center">
           {noSvg ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <h1 className="text-4xl font-bold text-black dark:text-white">
@@ -224,12 +224,12 @@ export default function EditorPage() {
                 </div>
               )}
               <Canvas
+                style={{ width: 500, height: 400 }}
                 onCreated={({ gl }) => {
                   canvasRef.current = gl.domElement
                   rendererRef.current = gl
                 }}
                 camera={{ position: [0, 0, 100], fov: 75, near: 0.1, far: 1000 }}
-                className="h-full w-full"
               >
                 <color attach="background" args={[bgColor]} />
                 <SvgMeshGroup svg={svg} ref={groupRef} />
