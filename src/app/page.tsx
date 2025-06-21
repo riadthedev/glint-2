@@ -91,7 +91,7 @@ export default function LandingPage() {
                 <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold text-gray-900">glint</span>
+                <span className="text-xl font-bold text-gray-900">Glint.</span>
               </div>
             </div>
 
@@ -185,8 +185,7 @@ export default function LandingPage() {
                   </Button>
                   <input type="file" id="file-upload" accept=".svg" onChange={handleFileUpload} className="hidden" />
                   <p className="text-gray-500">
-                    or drop an SVG file, <br />
-                    <span className="text-blue-600 cursor-pointer hover:underline">paste SVG code or URL</span>
+                    or drop an SVG file,
                   </p>
                 </div>
               </div>
@@ -199,17 +198,20 @@ export default function LandingPage() {
                 <p className="text-gray-600 font-medium">Try one of these:</p>
               </div>
               <div className="flex justify-center space-x-4">
-                {[1, 2, 3, 4].map((i) => (
+                {[
+                  { name: 'Apple', file: '/apple logo.svg' },
+                  { name: 'Nike', file: '/nike logo.svg' }
+                ].map((logo) => (
                   <button
-                    key={i}
+                    key={logo.name}
                     className="w-16 h-16 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center border-2 border-transparent hover:border-blue-300"
                   >
                     <Image
-                      src={`/placeholder.svg?height=40&width=40&text=Logo${i}`}
-                      alt={`Sample logo ${i}`}
+                      src={logo.file}
+                      alt={`${logo.name} logo`}
                       width={40}
                       height={40}
-                      className="w-8 h-8"
+                      className="max-w-16 max-h-16 object-contain"
                     />
                   </button>
                 ))}
