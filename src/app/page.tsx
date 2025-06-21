@@ -80,6 +80,25 @@ export default function LandingPage() {
     }
   }
 
+  const handleSampleLogoClick = async (logoPath: string) => {
+    try {
+      const response = await fetch(logoPath)
+      if (!response.ok) {
+        setErrorAlert("Error loading sample logo")
+        return
+      }
+      const svgContent = await response.text()
+      localStorage.setItem("uploadedSvg", svgContent)
+      setSvg(svgContent)
+      router.push("/editor")
+      setErrorAlert(null)
+      console.log("Successfully loaded sample logo")
+    } catch (error) {
+      setErrorAlert("Error loading sample logo please try again")
+      console.error("Error loading sample logo:", error)
+    }
+  }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -204,6 +223,7 @@ export default function LandingPage() {
                 ].map((logo) => (
                   <button
                     key={logo.name}
+                    onClick={() => handleSampleLogoClick(logo.file)}
                     className="w-16 h-16 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center border-2 border-transparent hover:border-blue-300"
                   >
                     <Image
