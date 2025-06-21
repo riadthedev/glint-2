@@ -7,7 +7,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Alert,AlertTitle } from "@/components/ui/alert"
-import { ChevronDown, Upload, Sparkles, AlertCircleIcon} from "lucide-react"
+import { Upload, Sparkles, AlertCircleIcon} from "lucide-react"
 import { useSVGContext } from "@/app/context/svgcontext"
 import { useRouter } from "next/navigation"
 
@@ -104,43 +104,12 @@ export default function LandingPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-gray-900">Glint.</span>
+          <div className="flex justify-center items-center h-16">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
-            </div>
-
-            <nav className="hidden md:flex items-center space-x-8">
-              <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
-                Gallery
-              </Link>
-              <div className="flex items-center space-x-1 text-gray-700 hover:text-gray-900 font-medium cursor-pointer">
-                <span>Features</span>
-                <ChevronDown className="w-4 h-4" />
-              </div>
-              <div className="flex items-center space-x-1 text-gray-700 hover:text-gray-900 font-medium cursor-pointer">
-                <span>For Business</span>
-                <ChevronDown className="w-4 h-4" />
-              </div>
-              <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
-                API
-              </Link>
-              <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
-                Pricing
-              </Link>
-            </nav>
-
-            <div className="flex items-center space-x-4">
-              <Link href="#" className="text-gray-700 hover:text-gray-900 font-medium">
-                Log in
-              </Link>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">
-                Sign up
-              </Button>
+              <span className="text-xl font-bold text-gray-900">Glint.</span>
             </div>
           </div>
         </div>
