@@ -209,11 +209,7 @@ export default function LandingPage() {
 
             {/* Terms */}
             <p className="text-xs text-gray-500 text-center">
-              By uploading an SVG or URL you agree to our{" "}
-              <Link href="#" className="text-blue-600 hover:underline">
-                Terms of Service
-              </Link>
-              . To learn more about how Glint handles your data, check our{" "}
+             To learn more about how Glint handles your data, check our{" "}
               <Link href="#" className="text-blue-600 hover:underline">
                 Privacy Policy
               </Link>
