@@ -36,7 +36,7 @@ import { Checkbox } from "@/components/ui/checkbox"
  * Turns an SVG string into a centred, uniformly‑scaled mesh group and flips it
  * upright (SVG Y‑axis is down, Three.js Y‑axis is up).
  */
-const SvgMeshGroup = forwardRef<THREE.Group, { svg: string }>(({ svg }, ref) => {
+const SvgMeshGroup = forwardRef<THREE.Group, { svg: string; thickness: number }>(({ svg, thickness }, ref) => {
   const group = useRef<THREE.Group | null>(null)
   const shapes = useMemo(() => (svg ? loadSvg(svg) : []), [svg])
 
@@ -47,6 +47,11 @@ const SvgMeshGroup = forwardRef<THREE.Group, { svg: string }>(({ svg }, ref) => 
     if (!group.current) return
     group.current.clear()
 
+    // Reset group transformations
+    group.current.scale.set(1, 1, 1)
+    group.current.rotation.set(0, 0, 0)
+    group.current.position.set(0, 0, 0)
+
     // ── Build meshes ────────────────────────────────────────────────────────
     const meshes: THREE.Mesh[] = []
     shapes.forEach((shape) => {
@@ -55,7 +60,7 @@ const SvgMeshGroup = forwardRef<THREE.Group, { svg: string }>(({ svg }, ref) => 
       if (!pts || pts.length < 3) return
 
       const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: 30,
+        depth: thickness,
         bevelEnabled: false,
         steps: 1,
       })
@@ -73,11 +78,13 @@ const SvgMeshGroup = forwardRef<THREE.Group, { svg: string }>(({ svg }, ref) => 
 
     // ── Center all geometries at origin BEFORE any transformations ─────────
     if (meshes.length > 0) {
-      // Calculate combined bounding box of all meshes
+      // Calculate combined bounding box of all geometries
       const combinedBox = new THREE.Box3()
       meshes.forEach(mesh => {
-        const box = new THREE.Box3().setFromObject(mesh)
-        combinedBox.union(box)
+        mesh.geometry.computeBoundingBox()
+        if (mesh.geometry.boundingBox) {
+          combinedBox.union(mesh.geometry.boundingBox)
+        }
       })
 
       if (!combinedBox.isEmpty()) {
@@ -88,7 +95,7 @@ const SvgMeshGroup = forwardRef<THREE.Group, { svg: string }>(({ svg }, ref) => 
           mesh.geometry.translate(-center.x, -center.y, -center.z)
         })
 
-        // Now scale the entire group
+        // Calculate scale after centering
         const size = combinedBox.getSize(new THREE.Vector3())
         const maxDim = Math.max(size.x, size.y, size.z)
         const scale = maxDim > 0 && Number.isFinite(maxDim) ? 50 / maxDim : 1
@@ -98,7 +105,7 @@ const SvgMeshGroup = forwardRef<THREE.Group, { svg: string }>(({ svg }, ref) => 
 
     // ── Flip the group upright (rotate 180° around X) ───────────────────────
     group.current.rotation.x = Math.PI
-  }, [shapes])
+  }, [shapes, thickness])
 
   return <group ref={group} />
 })
@@ -107,11 +114,22 @@ export default function EditorPage() {
   // Read uploaded SVG on mount (client‑side only)
   const [svg, setSvg] = useState<string>("")
   const [bgColor, setBgColor] = useState<string>("#222222")
+  const [thickness, setThickness] = useState<number>(30)
+  const [fov, setFov] = useState<number>(30)
   const groupRef = useRef<THREE.Group | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const [generating, setGenerating] = useState(false)
   const [includeBackground, setIncludeBackground] = useState<boolean>(true)
+
+  // Update camera FOV when fov state changes
+  useEffect(() => {
+    if (cameraRef.current) {
+      cameraRef.current.fov = fov
+      cameraRef.current.updateProjectionMatrix()
+    }
+  }, [fov])
 
   const generateVideo = () => {
     if (!canvasRef.current || !groupRef.current || generating) return
@@ -225,14 +243,15 @@ export default function EditorPage() {
               )}
               <Canvas
                 style={{ width: 500, height: 400 }}
-                onCreated={({ gl }) => {
+                onCreated={({ gl, camera }) => {
                   canvasRef.current = gl.domElement
                   rendererRef.current = gl
+                  cameraRef.current = camera as THREE.PerspectiveCamera
                 }}
-                camera={{ position: [0, 0, 100], fov: 75, near: 0.1, far: 1000 }}
+                camera={{ position: [0, 0, 100], fov: fov, near: 0.1, far: 1000 }}
               >
                 <color attach="background" args={[bgColor]} />
-                <SvgMeshGroup svg={svg} ref={groupRef} />
+                <SvgMeshGroup svg={svg} thickness={thickness} ref={groupRef} />
                 <ambientLight intensity={0.6} />
                 <directionalLight position={[10, 10, 5]} intensity={0.8} />
                 <directionalLight position={[-10, -10, -5]} intensity={0.3} />
@@ -272,6 +291,39 @@ export default function EditorPage() {
                   </Tooltip>
                 </TooltipProvider>
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="thickness">Thickness: {thickness}</Label>
+                <p className="text-sm text-muted-foreground">
+                  Adjust the depth/thickness of the 3D extrusion from 1 to 120.
+                </p>
+                <Input
+                  id="thickness"
+                  type="range"
+                  min="1"
+                  max="120"
+                  value={thickness}
+                  onChange={(e) => setThickness(Number(e.target.value))}
+                  className="cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fov">Field of View: {fov}°</Label>
+                <p className="text-sm text-muted-foreground">
+                  Control the camera's field of view angle from 30° to 120°.
+                </p>
+                <Input
+                  id="fov"
+                  type="range"
+                  min="30"
+                  max="120"
+                  value={fov}
+                  onChange={(e) => setFov(Number(e.target.value))}
+                  className="cursor-pointer"
+                />
+              </div>
+
               <Button onClick={generateVideo} disabled={generating} className="w-full">
                 {generating ? "Generating…" : "Generate 360 Video"}
               </Button>
