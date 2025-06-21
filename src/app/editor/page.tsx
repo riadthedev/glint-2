@@ -121,7 +121,7 @@ export default function EditorPage() {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const [generating, setGenerating] = useState(false)
-  const [includeBackground, setIncludeBackground] = useState<boolean>(true)
+
 
   // Update camera FOV when fov state changes
   useEffect(() => {
@@ -138,9 +138,9 @@ export default function EditorPage() {
     groupRef.current.rotation.set(Math.PI, 0, 0)
     groupRef.current.position.set(0, 0, 0)
 
-    // Manage background transparency
+    // Keep background opaque for video
     if (rendererRef.current) {
-      rendererRef.current.setClearAlpha(includeBackground ? 1 : 0)
+      rendererRef.current.setClearAlpha(1)
     }
 
     // Capture canvas stream
@@ -327,15 +327,7 @@ export default function EditorPage() {
               <Button onClick={generateVideo} disabled={generating} className="w-full">
                 {generating ? "Generating…" : "Generate 360 Video"}
               </Button>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="include-bg"
-                  checked={includeBackground}
-                  onCheckedChange={(v) => setIncludeBackground(!!v)}
-                  disabled={generating}
-                />
-                <Label htmlFor="include-bg">Include background in video</Label>
-              </div>
+
             </CardContent>
           </Card>
         </aside>
