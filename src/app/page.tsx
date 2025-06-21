@@ -131,9 +131,12 @@ export default function LandingPage() {
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative">
             <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 aspect-[4/3]">
-              <Image
-                src="/placeholder.svg?height=400&width=500"
-                alt="3D Logo Example"
+              <video
+                src="/360Logo.webm"
+                autoPlay
+                loop
+                muted
+                playsInline
                 width={500}
                 height={400}
                 className="w-full h-full object-cover"
