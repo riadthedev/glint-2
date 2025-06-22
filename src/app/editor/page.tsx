@@ -130,7 +130,7 @@ const SvgMeshGroup = forwardRef<THREE.Group, { svg: string; thickness: number }>
 export default function EditorPage() {
   // Read uploaded SVG on mount (client‑side only)
   const [svg, setSvg] = useState<string>("")
-  const [bgColor, setBgColor] = useState<string>("#d7d9dd")
+  const [bgColor, setBgColor] = useState<string>("#000000")
   const [thickness, setThickness] = useState<number>(30)
   const [fov, setFov] = useState<number>(30)
   const groupRef = useRef<THREE.Group | null>(null)
@@ -310,22 +310,21 @@ export default function EditorPage() {
                 <p className="text-sm text-muted-foreground">
                   Change the background color of the canvas here.
                 </p>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Input
-                        id="bg-color"
-                        type="color"
-                        value={bgColor}
-                        onChange={(e) => setBgColor(e.target.value)}
-                        className="cursor-pointer hover:ring-2 hover:ring-primary"
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Select canvas background color</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <div className="relative inline-flex items-center justify-center w-12 h-12 rounded-full ring-2 ring-gray-400">
+                  {/* inner colour circle with gap */}
+                  <div
+                    className="w-10 h-10 rounded-full"
+                    style={{ backgroundColor: bgColor }}
+                  />
+                  {/* transparent input overlays the whole ring */}
+                  <Input
+                    id="bg-color"
+                    type="color"
+                    value={bgColor}
+                    onChange={(e) => setBgColor(e.target.value)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
               </div>
               
               <div className="space-y-2">
