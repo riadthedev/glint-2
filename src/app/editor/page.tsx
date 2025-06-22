@@ -1,7 +1,7 @@
 "use client"
 
 import { Canvas } from "@react-three/fiber"
-import { OrbitControls } from "@react-three/drei"
+import { OrbitControls, Environment } from "@react-three/drei"
 import * as THREE from "three"
 import {
   useEffect,
@@ -61,17 +61,34 @@ const SvgMeshGroup = forwardRef<THREE.Group, { svg: string; thickness: number }>
 
       const geometry = new THREE.ExtrudeGeometry(shape, {
         depth: thickness,
-        bevelEnabled: false,
-        steps: 1,
-      })
+        steps: Math.max(128, thickness * 4),          // very dense depth subdivision
+        curveSegments: 64,                           // smoother outline curves
+        bevelEnabled: true,                          // slight bevel softens edge seams
+        bevelThickness: Math.max(0.5, thickness * 0.02),
+        bevelSize: Math.max(0.5, thickness * 0.02),
+        bevelSegments: 8,
+        bevelOffset: 0,
+      }) as THREE.ExtrudeGeometry
+
+      // Recompute normals to ensure smooth shading across the new segments
+      geometry.computeVertexNormals()
+
       if (geometry.attributes.position.count === 0) {
         geometry.dispose()
         return
       }
-      const mesh = new THREE.Mesh(
-        geometry,
-        new THREE.MeshNormalMaterial({ side: THREE.DoubleSide })
-      )
+      const material = new THREE.MeshPhysicalMaterial({
+        color: 0x9aa0a7,      // base tinted chrome
+        metalness: 1.0,
+        roughness: 0.12,      // sharper reflections but still slightly brushed
+        reflectivity: 1.0,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.1,
+        side: THREE.DoubleSide,
+        envMapIntensity: 1.4, // stronger reflections for chrome front
+      })
+
+      const mesh = new THREE.Mesh(geometry, material)
       meshes.push(mesh)
       group.current!.add(mesh)
     })
@@ -113,7 +130,7 @@ const SvgMeshGroup = forwardRef<THREE.Group, { svg: string; thickness: number }>
 export default function EditorPage() {
   // Read uploaded SVG on mount (client‑side only)
   const [svg, setSvg] = useState<string>("")
-  const [bgColor, setBgColor] = useState<string>("#222222")
+  const [bgColor, setBgColor] = useState<string>("#d7d9dd")
   const [thickness, setThickness] = useState<number>(30)
   const [fov, setFov] = useState<number>(30)
   const groupRef = useRef<THREE.Group | null>(null)
@@ -219,8 +236,8 @@ export default function EditorPage() {
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left column – Canvas or empty state */}
-        <div className="flex-1 relative flex items-center justify-center">
+        {/* Left column – Canvas */}
+        <div className="flex-1 relative">
           {noSvg ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <h1 className="text-4xl font-bold text-black dark:text-white">
@@ -242,19 +259,38 @@ export default function EditorPage() {
                 </div>
               )}
               <Canvas
-                style={{ width: 500, height: 400 }}
+                className="w-full h-full"
                 onCreated={({ gl, camera }) => {
                   canvasRef.current = gl.domElement
                   rendererRef.current = gl
                   cameraRef.current = camera as THREE.PerspectiveCamera
+                  // Enable tone-mapping & sRGB for correct HDR lighting
+                  gl.toneMapping = THREE.ACESFilmicToneMapping
+                  // "outputEncoding" was renamed in newer Three.js — use outputColorSpace when available
+                  // @ts-ignore – type may differ depending on three version
+                  gl.outputColorSpace = THREE.SRGBColorSpace
+                  // Lower exposure so scene isn't overly bright
+                  // @ts-ignore
+                  gl.toneMappingExposure = 0.8
                 }}
                 camera={{ position: [0, 0, 100], fov: fov, near: 0.1, far: 1000 }}
               >
+                {/* Crisp HDRI for chrome reflections */}
+                <Environment preset="warehouse" background={false} blur={0.3} />
                 <color attach="background" args={[bgColor]} />
                 <SvgMeshGroup svg={svg} thickness={thickness} ref={groupRef} />
-                <ambientLight intensity={0.6} />
-                <directionalLight position={[10, 10, 5]} intensity={0.8} />
-                <directionalLight position={[-10, -10, -5]} intensity={0.3} />
+                <ambientLight intensity={0.25} />
+                {/* soft sky/ground light to lift dark sides */}
+                <hemisphereLight args={[0xffffff, 0x444444, 0.6]} />
+                {/* key, rim and fill lights */}
+                <directionalLight position={[10, 10, 5]} intensity={1.0} />
+                <directionalLight position={[-10, -10, -5]} intensity={0.5} />
+                <directionalLight position={[0, -10, 10]} intensity={0.6} />
+                {/* front fill light reduced to tame brightness */}
+                <directionalLight position={[0, 0, 100]} intensity={0.15} />
+                {/* side fill lights to illuminate the logo when viewed edge-on */}
+                <directionalLight position={[100, 0, 0]} intensity={1.0} />
+                <directionalLight position={[-100, 0, 0]} intensity={1.0} />
                 <OrbitControls enableDamping dampingFactor={0.1} enabled={!generating} />
               </Canvas>
             </>
