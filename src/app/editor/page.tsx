@@ -1,7 +1,7 @@
 "use client"
 
 import { Canvas } from "@react-three/fiber"
-import { OrbitControls, Environment } from "@react-three/drei"
+import { OrbitControls, Environment, useProgress, Loader } from "@react-three/drei"
 import * as THREE from "three"
 import {
   useEffect,
@@ -10,6 +10,8 @@ import {
   useState,
   forwardRef,
   useImperativeHandle,
+  useTransition,
+  Suspense,
 } from "react"
 import Link from "next/link"
 import { loadSvg } from "@/lib/svg"
@@ -32,113 +34,142 @@ import {
 import { ArrowLeft } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
-/**
- * Turns an SVG string into a centred, uniformly‑scaled mesh group and flips it
- * upright (SVG Y‑axis is down, Three.js Y‑axis is up).
- */
-const SvgMeshGroup = forwardRef<THREE.Group, { svg: string; thickness: number }>(({ svg, thickness }, ref) => {
-  const group = useRef<THREE.Group | null>(null)
+interface SvgMeshGroupProps {
+  svg: string
+  thickness: number // live depth scale
+  onBuildStatus?: (busy: boolean) => void
+}
+
+// Outer group -> centring & uniform scale
+// Inner group -> actual meshes; scaled in Z for thickness
+const SvgMeshGroup = forwardRef<THREE.Group, SvgMeshGroupProps>(({ svg, thickness, onBuildStatus }, ref) => {
+  const outer = useRef<THREE.Group | null>(null)
+  const inner = useRef<THREE.Group | null>(null)
   const shapes = useMemo(() => (svg ? loadSvg(svg) : []), [svg])
 
-  // Expose the inner group to parent via ref
-  useImperativeHandle(ref, () => group.current as THREE.Group, [])
+  // Expose outer group to parent
+  useImperativeHandle(ref, () => outer.current as THREE.Group, [])
 
+  // Build geometry once when svg changes
   useEffect(() => {
-    if (!group.current) return
-    group.current.clear()
+    if (!outer.current || !inner.current) return
 
-    // Reset group transformations
-    group.current.scale.set(1, 1, 1)
-    group.current.rotation.set(0, 0, 0)
-    group.current.position.set(0, 0, 0)
+    // Mark busy and let React paint loader before heavy work
+    onBuildStatus?.(true)
 
-    // ── Build meshes ────────────────────────────────────────────────────────
-    const meshes: THREE.Mesh[] = []
-    shapes.forEach((shape) => {
-      if (!shape || typeof (shape as any).getPoints !== "function") return
-      const pts = shape.getPoints()
-      if (!pts || pts.length < 3) return
+    Promise.resolve().then(() => {
+      const gOuter = outer.current!
+      const gInner = inner.current!
 
-      const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: thickness,
-        steps: Math.max(128, thickness * 4),          // very dense depth subdivision
-        curveSegments: 64,                           // smoother outline curves
-        bevelEnabled: true,                          // slight bevel softens edge seams
-        bevelThickness: Math.max(0.5, thickness * 0.02),
-        bevelSize: Math.max(0.5, thickness * 0.02),
-        bevelSegments: 8,
-        bevelOffset: 0,
-      }) as THREE.ExtrudeGeometry
+      gInner.clear()
 
-      // Recompute normals to ensure smooth shading across the new segments
-      geometry.computeVertexNormals()
+      // Reset transforms
+      gOuter.scale.set(1, 1, 1)
+      gOuter.rotation.set(0, 0, 0)
+      gOuter.position.set(0, 0, 0)
+      gInner.scale.set(1, 1, thickness) // initial z scale
 
-      if (geometry.attributes.position.count === 0) {
-        geometry.dispose()
-        return
-      }
-      const material = new THREE.MeshPhysicalMaterial({
-        color: 0x9aa0a7,      // base tinted chrome
-        metalness: 1.0,
-        roughness: 0.12,      // sharper reflections but still slightly brushed
-        reflectivity: 1.0,
-        clearcoat: 0.6,
-        clearcoatRoughness: 0.1,
-        side: THREE.DoubleSide,
-        envMapIntensity: 1.4, // stronger reflections for chrome front
-      })
+      const meshes: THREE.Mesh[] = []
 
-      const mesh = new THREE.Mesh(geometry, material)
-      meshes.push(mesh)
-      group.current!.add(mesh)
-    })
+      shapes.forEach((shape) => {
+        if (!shape || typeof (shape as any).getPoints !== "function") return
+        const pts = shape.getPoints()
+        if (!pts || pts.length < 3) return
 
-    // ── Center all geometries at origin BEFORE any transformations ─────────
-    if (meshes.length > 0) {
-      // Calculate combined bounding box of all geometries
-      const combinedBox = new THREE.Box3()
-      meshes.forEach(mesh => {
-        mesh.geometry.computeBoundingBox()
-        if (mesh.geometry.boundingBox) {
-          combinedBox.union(mesh.geometry.boundingBox)
+        const pointCount = pts.length
+        const curveSeg = pointCount < 150 ? 48 : pointCount < 400 ? 32 : 16
+
+        const geometry = new THREE.ExtrudeGeometry(shape, {
+          depth: 1, // unit depth, we'll scale later
+          steps: 1,
+          curveSegments: curveSeg,
+          bevelEnabled: true,
+          bevelThickness: 0.5,
+          bevelSize: 0.5,
+          bevelSegments: 4,
+          bevelOffset: 0,
+        }) as THREE.ExtrudeGeometry
+
+        geometry.computeVertexNormals()
+
+        if (geometry.attributes.position.count === 0) {
+          geometry.dispose()
+          return
         }
-      })
 
-      if (!combinedBox.isEmpty()) {
-        const center = combinedBox.getCenter(new THREE.Vector3())
-        
-        // Translate each mesh geometry so the combined center is at origin
-        meshes.forEach(mesh => {
-          mesh.geometry.translate(-center.x, -center.y, -center.z)
+        const material = new THREE.MeshPhysicalMaterial({
+          color: 0x9aa0a7,
+          metalness: 1.0,
+          roughness: 0.12,
+          reflectivity: 1.0,
+          clearcoat: 0.6,
+          clearcoatRoughness: 0.1,
+          side: THREE.DoubleSide,
+          envMapIntensity: 1.4,
         })
 
-        // Calculate scale after centering
-        const size = combinedBox.getSize(new THREE.Vector3())
-        const maxDim = Math.max(size.x, size.y, size.z)
-        const scale = maxDim > 0 && Number.isFinite(maxDim) ? 50 / maxDim : 1
-        group.current!.scale.setScalar(scale)
+        const mesh = new THREE.Mesh(geometry, material)
+        meshes.push(mesh)
+        gInner.add(mesh)
+      })
+
+      // Center group
+      if (meshes.length > 0) {
+        const combinedBox = new THREE.Box3()
+        meshes.forEach((m) => {
+          m.geometry.computeBoundingBox()
+          if (m.geometry.boundingBox) combinedBox.union(m.geometry.boundingBox)
+        })
+
+        if (!combinedBox.isEmpty()) {
+          const center = combinedBox.getCenter(new THREE.Vector3())
+          meshes.forEach((m) => m.geometry.translate(-center.x, -center.y, -center.z))
+
+          const size = combinedBox.getSize(new THREE.Vector3())
+          const scale = 50 / Math.max(size.x, size.y, size.z)
+          gOuter.scale.setScalar(scale)
+        }
       }
+
+      gOuter.rotation.x = Math.PI
+
+      onBuildStatus?.(false)
+    })
+  }, [shapes])
+
+  // Live thickness scale update
+  useEffect(() => {
+    if (inner.current) {
+      inner.current.scale.z = thickness
     }
+  }, [thickness])
 
-    // ── Flip the group upright (rotate 180° around X) ───────────────────────
-    group.current.rotation.x = Math.PI
-  }, [shapes, thickness])
-
-  return <group ref={group} />
+  return (
+    <group ref={outer}>
+      <group ref={inner} />
+    </group>
+  )
 })
 
 export default function EditorPage() {
   // Read uploaded SVG on mount (client‑side only)
   const [svg, setSvg] = useState<string>("")
   const [bgColor, setBgColor] = useState<string>("#000000")
+  // Slider live value
+  const [thicknessPending, setThicknessPending] = useState<number>(30)
   const [thickness, setThickness] = useState<number>(30)
+  // Transition keeps heavy geometry rebuild low-priority so slider stays fluid
+  const [, startTransition] = useTransition()
   const [fov, setFov] = useState<number>(30)
+  const [rotationDuration, setRotationDuration] = useState<number>(5) // seconds for full 360
   const groupRef = useRef<THREE.Group | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [building, setBuilding] = useState(false)
 
+  const { active: loading } = useProgress()
 
   // Update camera FOV when fov state changes
   useEffect(() => {
@@ -160,10 +191,20 @@ export default function EditorPage() {
       rendererRef.current.setClearAlpha(1)
     }
 
-    // Capture canvas stream
+    // ---- Temporary quality upscale -----------------------------
+    const renderer = rendererRef.current!
+    const origPixelRatio = renderer.getPixelRatio()
+    const upscaleFactor = 3 // render 3× device pixel ratio
+    renderer.setPixelRatio(origPixelRatio * upscaleFactor)
+
+    const origSize = new THREE.Vector2()
+    renderer.getSize(origSize)
+    renderer.setSize(origSize.x * upscaleFactor, origSize.y * upscaleFactor, false)
+
     const stream = canvasRef.current.captureStream(60) // 60 FPS
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: "video/webm;codecs=vp9",
+      videoBitsPerSecond: 40_000_000, // much higher bitrate for near-lossless quality
     })
 
     const chunks: BlobPart[] = []
@@ -183,16 +224,18 @@ export default function EditorPage() {
       URL.revokeObjectURL(url)
       setGenerating(false)
 
-      // Restore clear alpha
+      // Restore renderer settings
       if (rendererRef.current) {
         rendererRef.current.setClearAlpha(1)
+        rendererRef.current.setPixelRatio(origPixelRatio)
+        rendererRef.current.setSize(origSize.x, origSize.y, false)
       }
     }
 
     mediaRecorder.start()
     setGenerating(true)
 
-    const duration = 5000 // ms (5 s)
+    const duration = rotationDuration * 1000 // ms
     let start: number | null = null
 
     const animate = (time: number) => {
@@ -208,7 +251,8 @@ export default function EditorPage() {
       if (progress < 1) {
         requestAnimationFrame(animate)
       } else {
-        mediaRecorder.stop()
+        // give encoder one extra frame before stopping to avoid truncation
+        setTimeout(() => mediaRecorder.stop(), 200)
       }
     }
 
@@ -220,6 +264,12 @@ export default function EditorPage() {
       setSvg(localStorage.getItem("uploadedSvg") ?? "")
     }
   }, [])
+
+  // Set building true whenever inputs that affect geometry change
+  useEffect(() => {
+    if (svg) setBuilding(true)
+  }, [svg])
+
   const noSvg = svg === ""
 
   return (
@@ -258,6 +308,12 @@ export default function EditorPage() {
                   <span className="text-white animate-pulse">Generating&nbsp;Video…</span>
                 </div>
               )}
+              {/* Show loader overlay while drei assets are loading */}
+              {(loading || building) && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
+                  <span className="text-white animate-pulse">Loading…</span>
+                </div>
+              )}
               <Canvas
                 className="w-full h-full"
                 onCreated={({ gl, camera }) => {
@@ -275,23 +331,25 @@ export default function EditorPage() {
                 }}
                 camera={{ position: [0, 0, 100], fov: fov, near: 0.1, far: 1000 }}
               >
-                {/* Crisp HDRI for chrome reflections */}
-                <Environment preset="warehouse" background={false} blur={0.3} />
-                <color attach="background" args={[bgColor]} />
-                <SvgMeshGroup svg={svg} thickness={thickness} ref={groupRef} />
-                <ambientLight intensity={0.25} />
-                {/* soft sky/ground light to lift dark sides */}
-                <hemisphereLight args={[0xffffff, 0x444444, 0.6]} />
-                {/* key, rim and fill lights */}
-                <directionalLight position={[10, 10, 5]} intensity={1.0} />
-                <directionalLight position={[-10, -10, -5]} intensity={0.5} />
-                <directionalLight position={[0, -10, 10]} intensity={0.6} />
-                {/* front fill light reduced to tame brightness */}
-                <directionalLight position={[0, 0, 100]} intensity={0.15} />
-                {/* side fill lights to illuminate the logo when viewed edge-on */}
-                <directionalLight position={[100, 0, 0]} intensity={1.0} />
-                <directionalLight position={[-100, 0, 0]} intensity={1.0} />
-                <OrbitControls enableDamping dampingFactor={0.1} enabled={!generating} />
+                <Suspense fallback={null}>
+                  {/* Crisp HDRI for chrome reflections */}
+                  <Environment preset="warehouse" background={false} blur={0.3} />
+                  <color attach="background" args={[bgColor]} />
+                  <SvgMeshGroup svg={svg} thickness={thicknessPending} ref={groupRef} onBuildStatus={setBuilding} />
+                  <ambientLight intensity={0.25} />
+                  {/* soft sky/ground light to lift dark sides */}
+                  <hemisphereLight args={[0xffffff, 0x444444, 0.6]} />
+                  {/* key, rim and fill lights */}
+                  <directionalLight position={[10, 10, 5]} intensity={1.0} />
+                  <directionalLight position={[-10, -10, -5]} intensity={0.5} />
+                  <directionalLight position={[0, -10, 10]} intensity={0.6} />
+                  {/* front fill light reduced to tame brightness */}
+                  <directionalLight position={[0, 0, 100]} intensity={0.15} />
+                  {/* side fill lights to illuminate the logo when viewed edge-on */}
+                  <directionalLight position={[100, 0, 0]} intensity={1.0} />
+                  <directionalLight position={[-100, 0, 0]} intensity={1.0} />
+                  <OrbitControls enableDamping dampingFactor={0.1} enabled={!generating} />
+                </Suspense>
               </Canvas>
             </>
           )}
@@ -337,7 +395,7 @@ export default function EditorPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="thickness">Thickness: {thickness}</Label>
+                <Label htmlFor="thickness">Thickness: {thicknessPending}</Label>
                 <p className="text-sm text-muted-foreground">
                   Adjust the depth/thickness of the 3D extrusion from 1 to 120.
                 </p>
@@ -346,8 +404,12 @@ export default function EditorPage() {
                   type="range"
                   min="1"
                   max="120"
-                  value={thickness}
-                  onChange={(e) => setThickness(Number(e.target.value))}
+                  value={thicknessPending}
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setThicknessPending(val)
+                    startTransition(() => setThickness(val))
+                  }}
                   className="cursor-pointer"
                 />
               </div>
@@ -368,6 +430,23 @@ export default function EditorPage() {
                 />
               </div>
 
+              {/* Rotation duration */}
+              <div className="space-y-2">
+                <Label htmlFor="rotation">Rotation Duration: {rotationDuration}s</Label>
+                <p className="text-sm text-muted-foreground">
+                  Time it takes to complete one full 360° turn in the exported video (2-20&nbsp;s).
+                </p>
+                <Input
+                  id="rotation"
+                  type="range"
+                  min="2"
+                  max="20"
+                  value={rotationDuration}
+                  onChange={(e) => setRotationDuration(Number(e.target.value))}
+                  className="cursor-pointer"
+                />
+              </div>
+
               <Button onClick={generateVideo} disabled={generating} className="w-full">
                 {generating ? "Generating…" : "Generate 360 Video"}
               </Button>
@@ -376,6 +455,9 @@ export default function EditorPage() {
           </Card>
         </aside>
       </div>
+
+      {/* global loader for asset progress */}
+      <Loader />
     </div>
   )
 }
