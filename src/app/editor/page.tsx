@@ -31,7 +31,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip"
-import { ArrowLeft, Settings, ChevronUp, ChevronDown } from "lucide-react"
+import { ArrowLeft, Settings, ChevronUp, ChevronDown, X } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 interface SvgMeshGroupProps {
@@ -577,8 +577,18 @@ export default function EditorPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4">
-              {/* Drag handle */}
-              <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+              {/* Header with drag handle and close button */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSettingsOpen(false)}
+                  className="p-1 h-8 w-8"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
               <SettingsContent />
             </div>
           </div>
