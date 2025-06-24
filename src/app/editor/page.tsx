@@ -198,12 +198,11 @@ export default function EditorPage() {
     const renderer = rendererRef.current!
     const origPixelRatio = renderer.getPixelRatio()
     // Keep native pixel ratio during capture for consistent fps
-    const upscaleFactor = 1
     const fps = 24 // lower FPS to reduce dropped frames
     const stream = canvasRef.current.captureStream(fps) // match fps to frame counter
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: "video/webm;codecs=vp9",
-      videoBitsPerSecond: 40_000_000, // much higher bitrate for near-lossless quality
+      videoBitsPerSecision: 40_000_000, // much higher bitrate for near-lossless quality
     })
 
     const chunks: BlobPart[] = []
@@ -239,19 +238,18 @@ export default function EditorPage() {
     mediaRecorder.start()
     setGenerating(true)
 
-    const FLUSH_FRAMES = fps // extra 1 second buffer
-    const totalFrames = fps * rotationDuration
-    let frame = 0
+    // Drive animation with elapsed time instead of frame counter
+    const startTime = performance.now() // ms
 
-    renderer.setAnimationLoop(() => {
-      const progress = Math.min(frame, totalFrames) / totalFrames // lock at 1 for flush frames
+    renderer.setAnimationLoop((t) => {
+      const elapsed = (t - startTime) / 1000 // seconds
+      const progress = Math.min(elapsed / rotationDuration, 1)
+      
       if (groupRef.current) {
         groupRef.current.rotation.y = startRotY + progress * Math.PI * 2
       }
 
-      frame += 1
-
-      if (frame >= totalFrames + FLUSH_FRAMES) {
+      if (elapsed >= rotationDuration + 1) { // +1 s flush buffer
         renderer.setAnimationLoop(null)
         mediaRecorder.stop()
       }
