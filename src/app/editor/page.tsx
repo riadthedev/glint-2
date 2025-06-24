@@ -182,9 +182,12 @@ export default function EditorPage() {
   const generateVideo = () => {
     if (!canvasRef.current || !groupRef.current || generating) return
 
-    // Reset rotation - since geometry is already centered, we don't need to recenter
-    groupRef.current.rotation.set(Math.PI, 0, 0)
-    groupRef.current.position.set(0, 0, 0)
+    // Cache original transform so we can restore after recording
+    const originalRot = groupRef.current.rotation.clone()
+    const originalPos = groupRef.current.position.clone()
+
+    // Ensure we start exactly at current orientation (no snap)
+    const startRotY = groupRef.current.rotation.y
 
     // Keep background opaque for video
     if (rendererRef.current) {
@@ -194,14 +197,10 @@ export default function EditorPage() {
     // ---- Temporary quality upscale -----------------------------
     const renderer = rendererRef.current!
     const origPixelRatio = renderer.getPixelRatio()
-    const upscaleFactor = 3 // render 3× device pixel ratio
-    renderer.setPixelRatio(origPixelRatio * upscaleFactor)
-
-    const origSize = new THREE.Vector2()
-    renderer.getSize(origSize)
-    renderer.setSize(origSize.x * upscaleFactor, origSize.y * upscaleFactor, false)
-
-    const stream = canvasRef.current.captureStream(60) // 60 FPS
+    // Keep native pixel ratio during capture for consistent fps
+    const upscaleFactor = 1
+    const fps = 24 // lower FPS to reduce dropped frames
+    const stream = canvasRef.current.captureStream(fps) // match fps to frame counter
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: "video/webm;codecs=vp9",
       videoBitsPerSecond: 40_000_000, // much higher bitrate for near-lossless quality
@@ -228,35 +227,35 @@ export default function EditorPage() {
       if (rendererRef.current) {
         rendererRef.current.setClearAlpha(1)
         rendererRef.current.setPixelRatio(origPixelRatio)
-        rendererRef.current.setSize(origSize.x, origSize.y, false)
+      }
+
+      // Restore model transform
+      if (groupRef.current) {
+        groupRef.current.rotation.copy(originalRot)
+        groupRef.current.position.copy(originalPos)
       }
     }
 
     mediaRecorder.start()
     setGenerating(true)
 
-    const duration = rotationDuration * 1000 // ms
-    let start: number | null = null
+    const FLUSH_FRAMES = fps // extra 1 second buffer
+    const totalFrames = fps * rotationDuration
+    let frame = 0
 
-    const animate = (time: number) => {
-      if (!start) start = time
-      const elapsed = time - (start ?? 0)
-      const progress = Math.min(elapsed / duration, 1)
-
+    renderer.setAnimationLoop(() => {
+      const progress = Math.min(frame, totalFrames) / totalFrames // lock at 1 for flush frames
       if (groupRef.current) {
-        // Only rotate around Y axis - X stays at Math.PI to keep it upright
-        groupRef.current.rotation.y = progress * Math.PI * 2
+        groupRef.current.rotation.y = startRotY + progress * Math.PI * 2
       }
 
-      if (progress < 1) {
-        requestAnimationFrame(animate)
-      } else {
-        // give encoder one extra frame before stopping to avoid truncation
-        setTimeout(() => mediaRecorder.stop(), 200)
-      }
-    }
+      frame += 1
 
-    requestAnimationFrame(animate)
+      if (frame >= totalFrames + FLUSH_FRAMES) {
+        renderer.setAnimationLoop(null)
+        mediaRecorder.stop()
+      }
+    })
   }
 
   useEffect(() => {
