@@ -247,7 +247,7 @@ export default function EditorPage() {
     const stream = canvasRef.current.captureStream(fps) // match fps to frame counter
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: "video/webm;codecs=vp9",
-      videoBitsPerSecond: 40_000_000, // much higher bitrate for near-lossless quality
+      videoBitsPerSecond: 80_000_000, // much higher bitrate for near-lossless quality
     })
 
     const chunks: BlobPart[] = []
