@@ -133,9 +133,7 @@ export default function PrivacyPolicy() {
               </p>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-gray-700">
-                  Email: privacy@glint.com<br />
-                  Address: [Your Business Address]<br />
-                  Phone: [Your Phone Number]
+                  Email: johnriad.dev@gmail.com<br />
                 </p>
               </div>
             </section>
