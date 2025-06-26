@@ -31,18 +31,19 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip"
-import { ArrowLeft, Settings, ChevronUp, ChevronDown, X } from "lucide-react"
+import { ArrowLeft, Settings, ChevronUp, ChevronDown, X, Play } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 interface SvgMeshGroupProps {
   svg: string
-  thickness: number // live depth scale
+  thickness: number
+  highQuality?: boolean
   onBuildStatus?: (busy: boolean) => void
 }
 
 // Outer group -> centring & uniform scale
 // Inner group -> actual meshes; scaled in Z for thickness
-const SvgMeshGroup = forwardRef<THREE.Group, SvgMeshGroupProps>(({ svg, thickness, onBuildStatus }, ref) => {
+const SvgMeshGroup = forwardRef<THREE.Group, SvgMeshGroupProps>(({ svg, thickness, highQuality = false, onBuildStatus }, ref) => {
   const outer = useRef<THREE.Group | null>(null)
   const inner = useRef<THREE.Group | null>(null)
   const shapes = useMemo(() => (svg ? loadSvg(svg) : []), [svg])
@@ -50,7 +51,7 @@ const SvgMeshGroup = forwardRef<THREE.Group, SvgMeshGroupProps>(({ svg, thicknes
   // Expose outer group to parent
   useImperativeHandle(ref, () => outer.current as THREE.Group, [])
 
-  // Build geometry once when svg changes
+  // Build geometry when svg, thickness, or quality changes
   useEffect(() => {
     if (!outer.current || !inner.current) return
 
@@ -67,7 +68,7 @@ const SvgMeshGroup = forwardRef<THREE.Group, SvgMeshGroupProps>(({ svg, thicknes
       gOuter.scale.set(1, 1, 1)
       gOuter.rotation.set(0, 0, 0)
       gOuter.position.set(0, 0, 0)
-      gInner.scale.set(1, 1, thickness) // initial z scale
+      gInner.scale.set(1, 1, 1) // No more Z scaling needed
 
       const meshes: THREE.Mesh[] = []
 
@@ -77,16 +78,20 @@ const SvgMeshGroup = forwardRef<THREE.Group, SvgMeshGroupProps>(({ svg, thicknes
         if (!pts || pts.length < 3) return
 
         const pointCount = pts.length
-        const curveSeg = pointCount < 150 ? 48 : pointCount < 400 ? 32 : 16
+        
+        // Improved curve segments calculation
+        const curveSeg = highQuality 
+          ? Math.min(96, Math.max(32, Math.round(pointCount * 0.6)))
+          : Math.min(64, Math.max(16, Math.round(pointCount * 0.4)))
 
         const geometry = new THREE.ExtrudeGeometry(shape, {
-          depth: 1, // unit depth, we'll scale later
-          steps: 1,
+          depth: thickness, // Real depth instead of unit depth
+          steps: Math.max(2, Math.round(thickness / 8)), // 1 slice every ~8 units
           curveSegments: curveSeg,
           bevelEnabled: true,
-          bevelThickness: 0.5,
-          bevelSize: 0.5,
-          bevelSegments: 4,
+          bevelThickness: 0.03 * thickness, // Proportional to thickness
+          bevelSize: 0.03 * thickness, // Proportional to thickness
+          bevelSegments: highQuality ? 8 : 6,
           bevelOffset: 0,
         }) as THREE.ExtrudeGeometry
 
@@ -135,14 +140,7 @@ const SvgMeshGroup = forwardRef<THREE.Group, SvgMeshGroupProps>(({ svg, thicknes
 
       onBuildStatus?.(false)
     })
-  }, [shapes])
-
-  // Live thickness scale update
-  useEffect(() => {
-    if (inner.current) {
-      inner.current.scale.z = thickness
-    }
-  }, [thickness])
+  }, [shapes, thickness, highQuality])
 
   return (
     <group ref={outer}>
@@ -163,6 +161,7 @@ export default function EditorPage() {
   const [fov, setFov] = useState<number>(40)
   const [rotationDuration, setRotationDuration] = useState<number>(5) // seconds for full 360
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false) // For mobile drawer
+  const [highQuality, setHighQuality] = useState<boolean>(false) // Quality toggle
   const groupRef = useRef<THREE.Group | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -224,81 +223,115 @@ export default function EditorPage() {
 
   const cameraConfig = getCameraConfig()
 
-  const generateVideo = () => {
+  const generateVideo = async () => {
     if (!canvasRef.current || !groupRef.current || generating) return
 
     // Cache original transform so we can restore after recording
     const originalRot = groupRef.current.rotation.clone()
     const originalPos = groupRef.current.position.clone()
 
-    // Ensure we start exactly at current orientation (no snap)
-    const startRotY = groupRef.current.rotation.y
+    try {
+      setGenerating(true)
 
-    // Keep background opaque for video
-    if (rendererRef.current) {
-      rendererRef.current.setClearAlpha(1)
-    }
+      // Switch to high quality for recording
+      setHighQuality(true)
+      
+      // Wait a bit for the high quality rebuild to complete
+      await new Promise(resolve => setTimeout(resolve, 500))
 
-    // ---- Temporary quality upscale -----------------------------
-    const renderer = rendererRef.current!
-    const origPixelRatio = renderer.getPixelRatio()
-    // Keep native pixel ratio during capture for consistent fps
-    const fps = 24 // lower FPS to reduce dropped frames
-    const stream = canvasRef.current.captureStream(fps) // match fps to frame counter
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: "video/webm;codecs=vp9",
-      videoBitsPerSecond: 80_000_000, // much higher bitrate for near-lossless quality
-    })
+      // Ensure we start exactly at current orientation (no snap)
+      const startRotY = groupRef.current.rotation.y
 
-    const chunks: BlobPart[] = []
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size) chunks.push(e.data)
-    }
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: "video/webm" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = "logo360.webm"
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-      setGenerating(false)
-
-      // Restore renderer settings
+      // Keep background opaque for video
       if (rendererRef.current) {
         rendererRef.current.setClearAlpha(1)
-        rendererRef.current.setPixelRatio(origPixelRatio)
       }
 
-      // Restore model transform
-      if (groupRef.current) {
-        groupRef.current.rotation.copy(originalRot)
-        groupRef.current.position.copy(originalPos)
+      // ---- Temporary quality upscale -----------------------------
+      const renderer = rendererRef.current!
+      const origPixelRatio = renderer.getPixelRatio()
+      // Keep native pixel ratio during capture for consistent fps
+      const fps = 24 // lower FPS to reduce dropped frames
+      const stream = canvasRef.current.captureStream(fps) // match fps to frame counter
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "video/webm;codecs=vp9",
+        videoBitsPerSecorder: 80_000_000, // much higher bitrate for near-lossless quality
+      })
+
+      const chunks: BlobPart[] = []
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size) chunks.push(e.data)
       }
+
+      mediaRecorder.onstop = async () => {
+        try {
+          const blob = new Blob(chunks, { type: "video/webm" })
+
+          // Restore renderer settings
+          if (rendererRef.current) {
+            rendererRef.current.setClearAlpha(1)
+            rendererRef.current.setPixelRatio(origPixelRatio)
+          }
+
+          // Restore model transform
+          if (groupRef.current) {
+            groupRef.current.rotation.copy(originalRot)
+            groupRef.current.position.copy(originalPos)
+          }
+
+          // Switch back to low quality for interaction
+          setHighQuality(false)
+
+          // Send webm to /api/get-video for conversion and download mp4
+          const formData = new FormData()
+          formData.append("file", blob, "logo360.webm")
+          
+          const res = await fetch("/api/get-video", {
+            method: "POST",
+            body: formData,
+          })
+          
+          if (!res.ok) throw new Error("Failed to convert video")
+          
+          const mp4Blob = await res.blob()
+          const url = URL.createObjectURL(mp4Blob)
+          const a = document.createElement("a")
+          a.href = url
+          a.download = "logo360.mp4"
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          URL.revokeObjectURL(url)
+        } catch (err) {
+          alert("Video conversion failed. Please try again.")
+        } finally {
+          setGenerating(false)
+        }
+      }
+
+      mediaRecorder.start()
+
+      // Drive animation with elapsed time instead of frame counter
+      const startTime = performance.now() // ms
+
+      renderer.setAnimationLoop((t) => {
+        const elapsed = (t - startTime) / 1000 // seconds
+        const progress = Math.min(elapsed / rotationDuration, 1)
+        
+        if (groupRef.current) {
+          groupRef.current.rotation.y = startRotY + progress * Math.PI * 2
+        }
+
+        if (elapsed >= rotationDuration + 1) { // +1 s flush buffer
+          renderer.setAnimationLoop(null)
+          mediaRecorder.stop()
+        }
+      })
+    } catch (err) {
+      setGenerating(false)
+      setHighQuality(false)
+      alert("Video generation failed. Please try again.")
     }
-
-    mediaRecorder.start()
-    setGenerating(true)
-
-    // Drive animation with elapsed time instead of frame counter
-    const startTime = performance.now() // ms
-
-    renderer.setAnimationLoop((t) => {
-      const elapsed = (t - startTime) / 1000 // seconds
-      const progress = Math.min(elapsed / rotationDuration, 1)
-      
-      if (groupRef.current) {
-        groupRef.current.rotation.y = startRotY + progress * Math.PI * 2
-      }
-
-      if (elapsed >= rotationDuration + 1) { // +1 s flush buffer
-        renderer.setAnimationLoop(null)
-        mediaRecorder.stop()
-      }
-    })
   }
 
   useEffect(() => {
@@ -425,7 +458,7 @@ export default function EditorPage() {
           className="w-full text-sm"
           size="sm"
         >
-          {generating ? "Generating…" : "Generate 360 Video"}
+          {generating ? "Generating Video…" : "Generate 360 Video"}
         </Button>
       </CardContent>
     </Card>
@@ -449,17 +482,32 @@ export default function EditorPage() {
             </Link>
           </Button>
           
-          {/* Mobile settings toggle */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="lg:hidden"
-            onClick={() => setSettingsOpen(!settingsOpen)}
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-            {settingsOpen ? <ChevronDown className="h-4 w-4 ml-1" /> : <ChevronUp className="h-4 w-4 ml-1" />}
-          </Button>
+          <div className="flex items-center space-x-2">
+            {/* Mobile video generation button */}
+            {!noSvg && (
+              <Button
+                onClick={generateVideo}
+                disabled={generating}
+                size="sm"
+                className="lg:hidden"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {generating ? "Generating…" : "Video"}
+              </Button>
+            )}
+            
+            {/* Mobile settings toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="lg:hidden"
+              onClick={() => setSettingsOpen(!settingsOpen)}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
+              {settingsOpen ? <ChevronDown className="h-4 w-4 ml-1" /> : <ChevronUp className="h-4 w-4 ml-1" />}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -484,7 +532,7 @@ export default function EditorPage() {
               {/* Overlay while generating */}
               {generating && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 pointer-events-none">
-                  <span className="text-white animate-pulse text-sm lg:text-base">Generating&nbsp;Video…</span>
+                  <span className="text-white animate-pulse text-sm lg:text-base">Generating Video…</span>
                 </div>
               )}
               {/* Show loader overlay while drei assets are loading */}
@@ -526,7 +574,13 @@ export default function EditorPage() {
                   {/* Crisp HDRI for chrome reflections */}
                   <Environment preset="warehouse" background={false} blur={0.3} />
                   <color attach="background" args={[bgColor]} />
-                  <SvgMeshGroup svg={svg} thickness={thicknessPending} ref={groupRef} onBuildStatus={setBuilding} />
+                  <SvgMeshGroup 
+                    svg={svg} 
+                    thickness={thickness} 
+                    highQuality={highQuality}
+                    ref={groupRef} 
+                    onBuildStatus={setBuilding} 
+                  />
                   <ambientLight intensity={0.25} />
                   {/* soft sky/ground light to lift dark sides */}
                   <hemisphereLight args={[0xffffff, 0x444444, 0.6]} />
